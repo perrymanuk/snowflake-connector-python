@@ -130,14 +130,14 @@ async def test_auth_oauth_auth_code_single_use_refresh_tokens(
             None,
         ),
         (
-            "Only client ID supplied",
+            "Only client ID supplied (public client with PKCE)",
             "testClientID",
             "",
             "example.snowflakecomputing.com",
             "https://example.snowflakecomputing.com/oauth/authorize",
             "https://example.snowflakecomputing.com/oauth/token",
             False,
-            ProgrammingError,
+            None,
         ),
         (
             "Non-Snowflake IdP",
@@ -170,14 +170,14 @@ async def test_auth_oauth_auth_code_single_use_refresh_tokens(
             None,
         ),
         (
-            "[China] Only client ID supplied",
+            "[China] Only client ID supplied (public client with PKCE)",
             "testClientID",
             "",
             "example.snowflakecomputing.cn",
             "https://example.snowflakecomputing.cn/oauth/authorize",
             "https://example.snowflakecomputing.cn/oauth/token",
             False,
-            ProgrammingError,
+            None,
         ),
     ],
 )

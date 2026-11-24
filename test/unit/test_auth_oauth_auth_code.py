@@ -147,14 +147,24 @@ def test_auth_oauth_auth_code_single_use_refresh_tokens(
             None,
         ),
         (
-            "Only client ID supplied",
+            "Only client ID supplied (public client with PKCE)",
             "testClientID",
             "",
             "example.snowflakecomputing.com",
             "https://example.snowflakecomputing.com/oauth/authorize",
             "https://example.snowflakecomputing.com/oauth/token",
             False,
-            ProgrammingError,
+            None,
+        ),
+        (
+            "Non-Snowflake IdP, only client ID supplied (public client with PKCE)",
+            "testClientID",
+            "",
+            "example.snowflakecomputing.com",
+            "https://example.okta.com/oauth2/default/v1/authorize",
+            "https://example.okta.com/oauth2/default/v1/token",
+            False,
+            None,
         ),
         (
             "Non-Snowflake IdP",
@@ -187,14 +197,14 @@ def test_auth_oauth_auth_code_single_use_refresh_tokens(
             None,
         ),
         (
-            "[China] Only client ID supplied",
+            "[China] Only client ID supplied (public client with PKCE)",
             "testClientID",
             "",
             "example.snowflakecomputing.cn",
             "https://example.snowflakecomputing.cn/oauth/authorize",
             "https://example.snowflakecomputing.cn/oauth/token",
             False,
-            ProgrammingError,
+            None,
         ),
         (
             "Uppercase account name — host case must not break idp detection",
@@ -459,3 +469,69 @@ def test_auth_oauth_auth_code_passes_uri_to_http_server(
         mock_http_server_init.assert_called_once_with(
             uri=uri or redirect_uri, redirect_uri=redirect_uri
         )
+
+
+@pytest.mark.parametrize("client_secret", ["", None])
+def test_public_client_requires_pkce(client_secret, omit_oauth_urls_check):
+    """Without a secret, the client must use PKCE: a public client without it is rejected."""
+    with pytest.raises(ProgrammingError, match="client_secret"):
+        AuthByOauthCode(
+            "app",
+            "testClientID",
+            client_secret,
+            "https://example.okta.com/oauth2/default/v1/authorize",
+            "https://example.okta.com/oauth2/default/v1/token",
+            "http://127.0.0.1:8080",
+            "scope",
+            "example.snowflakecomputing.com",
+            pkce_enabled=False,
+        )
+
+
+def _token_request_auth(client_secret: str) -> AuthByOauthCode:
+    return AuthByOauthCode(
+        "app",
+        "testClientID",
+        client_secret,
+        "https://example.okta.com/oauth2/default/v1/authorize",
+        "https://example.okta.com/oauth2/default/v1/token",
+        "http://127.0.0.1:8080",
+        "scope",
+        "example.snowflakecomputing.com",
+    )
+
+
+def test_public_client_token_request_sends_client_id_in_body():
+    """A public client sends no Basic auth header and puts client_id in the body (RFC 6749 4.1.3)."""
+    auth = _token_request_auth("")
+    headers = auth._create_token_request_headers()
+    assert "Authorization" not in headers
+    fields = auth._add_public_client_id({"grant_type": "authorization_code"})
+    assert fields == {"grant_type": "authorization_code", "client_id": "testClientID"}
+    refresh = auth._add_public_client_id({"grant_type": "refresh_token"})
+    assert refresh["client_id"] == "testClientID"
+
+
+def test_confidential_client_token_request_unchanged():
+    """With a secret, the client authenticates with Basic auth and the body has no client_id."""
+    auth = _token_request_auth("testClientSecret")
+    headers = auth._create_token_request_headers()
+    assert headers["Authorization"].startswith("Basic ")
+    fields = {"grant_type": "authorization_code"}
+    assert auth._add_public_client_id(fields) == fields
+
+
+def test_public_client_token_request_posts_without_basic_auth():
+    """End to end through _post_token_request: the HTTP call carries client_id and no Basic header."""
+    auth = _token_request_auth("")
+    response = mock.Mock(status=200)
+    with patch.object(auth, "_resolve_proxy_url", return_value=None), patch(
+        "snowflake.connector.vendored.urllib3.PoolManager.request_encode_body",
+        return_value=response,
+    ) as req:
+        auth._post_token_request(
+            mock.Mock(), {"grant_type": "authorization_code", "code": "c"}
+        )
+    kwargs = req.call_args.kwargs
+    assert "Authorization" not in kwargs["headers"]
+    assert kwargs["fields"]["client_id"] == "testClientID"

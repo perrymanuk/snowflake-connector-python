@@ -8,6 +8,7 @@ Source code is also available at: https://github.com/snowflakedb/snowflake-conne
 
 # Release Notes
 - Upcoming release
+  - `OAUTH_AUTHORIZATION_CODE` supports public clients with an external IdP (Okta, Entra ID and others): when `oauth_client_secret` is empty and PKCE is on, the connector sends `client_id` in the token request body and no Basic auth header, as RFC 6749 and RFC 8252 describe for native apps. Before, it raised `251020: Oauth code flow requirement 'client_secret' is empty`, and a placeholder secret was rejected by the IdP. Without PKCE, a secret is still required.
   - Raised the conda recipe's minimum certifi requirement to 2026.10.18 so conda installs no longer accept bundles that still include the compromised eMudhra trust anchors (SNOW-4354085).
   - Changed large-result chunk download retry and failure logs. They record the batch id, attempt, error type, host and path, and S3 request ids when the response has them. They no longer include the exception text or a traceback (SNOW-4404156).
   - Added connection parameters `log_query_text` and `log_query_parameters`, both off by default. When `log_query_text` is enabled, the INFO line is the statement with client-side placeholders left in place; bind values are written only when both parameters are enabled. Enabling either parameter can write confidential query text and bind values to logs (SNOW-2835375).
