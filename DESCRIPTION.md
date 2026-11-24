@@ -7,6 +7,9 @@ https://docs.snowflake.com/
 Source code is also available at: https://github.com/snowflakedb/snowflake-connector-python
 
 # Release Notes
+- v4.8.1+htg.1 (perrymanuk fork, branch htg/v4.8.1-public-client)
+  - `OAUTH_AUTHORIZATION_CODE` supports public clients with an external IdP (Okta, Entra ID and others): when `oauth_client_secret` is empty and PKCE is on, the connector sends `client_id` in the token request body and no Basic auth header, as RFC 6749 and RFC 8252 describe for native apps. Before, it raised `251020: Oauth code flow requirement 'client_secret' is empty`, and a placeholder secret was rejected by the IdP. Without PKCE, a secret is still required.
+
 - v4.8.1(Oct 26,2026)
   - Fixed `write_pandas` identifier quoting. Parquet field paths are quoted, Iceberg option values are escaped string literals, and `quote_identifiers=False` accepts only valid unquoted identifiers.
   - Dropped support for Python 3.10. The minimum supported version is now Python 3.11.

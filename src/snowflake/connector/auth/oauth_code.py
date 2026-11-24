@@ -78,6 +78,7 @@ class AuthByOauthCode(AuthByOAuthBase):
             token_request_url,
             host,
             connection,
+            pkce_enabled=pkce_enabled,
         )
         # Warn if HTTP is used for OAuth URLs
         if authentication_url:
@@ -459,6 +460,7 @@ You can close this window now and go back where you started from.
         token_request_url: str,
         host: str,
         connection: SnowflakeConnection,
+        pkce_enabled: bool = True,
     ) -> tuple[str, str] | None:
         if self._eligible_for_default_client_credentials(
             client_id, client_secret, authorization_url, token_request_url, host
@@ -467,6 +469,13 @@ You can close this window now and go back where you started from.
                 self.__class__._LOCAL_APPLICATION_CLIENT_CREDENTIALS,
                 self.__class__._LOCAL_APPLICATION_CLIENT_CREDENTIALS,
             )
+        elif pkce_enabled and client_id and not client_secret:
+            # Public client (RFC 6749 section 2.1, RFC 8252): it has no secret and
+            # authenticates with PKCE, sending client_id in the token request body.
+            logger.debug(
+                "no client secret supplied, using the OAuth public client flow with PKCE"
+            )
+            return client_id, ""
         else:
             self._validate_client_credentials_present(
                 client_id, client_secret, connection

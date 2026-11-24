@@ -593,7 +593,7 @@ class AuthByOAuthBase(AuthByPlugin, _OAuthTokensMixin, ABC):
                     self._token_request_url,
                     headers=self._create_token_request_headers(),
                     encode_multipart=False,
-                    fields=fields,
+                    fields=self._add_public_client_id(fields),
                 )
             except Exception as exc:
                 if not self._is_retryable_oauth_token_exception(exc):
@@ -697,15 +697,28 @@ class AuthByOAuthBase(AuthByPlugin, _OAuthTokensMixin, ABC):
             ),
         )
 
+    def _is_public_client(self) -> bool:
+        return not self._client_secret
+
+    def _add_public_client_id(self, fields: dict[str, str]) -> dict[str, str]:
+        """A public client has no secret, so it identifies itself in the body (RFC 6749 section 4.1.3)."""
+        if self._is_public_client() and "client_id" not in fields:
+            return {**fields, "client_id": self._client_id}
+        return fields
+
     def _create_token_request_headers(self) -> dict[str, str]:
-        return {
-            "Authorization": "Basic "
-            + base64.b64encode(
-                f"{self._client_id}:{self._client_secret}".encode()
-            ).decode(),
+        headers = {
             "Accept": "application/json",
             "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
         }
+        if not self._is_public_client():
+            headers["Authorization"] = (
+                "Basic "
+                + base64.b64encode(
+                    f"{self._client_id}:{self._client_secret}".encode()
+                ).decode()
+            )
+        return headers
 
     @staticmethod
     def _log_if_http_in_use(url: str) -> None:
